@@ -1,17 +1,20 @@
 package model
 
-import (
-	"github.com/google/uuid"
-	"gorm.io/gorm"
-)
-
 type User struct {
-	ID    uuid.UUID `json:"id"`
-	Name  string    `json:"name" gorm:"not null;type:string"`
-	Major string    `json:"major"`
+	Id                int
+	Username          string
+	Password          string
+	Role              UserRole
+	IsActive          bool
+	Email             string
+	VerificationToken string
+	IsVerified        bool
 }
 
-func (user *User) BeforeCreate(scope *gorm.DB) error {
-	user.ID = uuid.New()
-	return nil
-}
+type UserRole int
+
+const (
+	Administrator UserRole = iota
+	Author
+	Tourist
+)

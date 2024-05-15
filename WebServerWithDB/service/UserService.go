@@ -4,10 +4,17 @@ import (
 	"database-example/model"
 	"database-example/repo"
 	"fmt"
+
+	"gorm.io/gorm"
 )
 
 type UserService struct {
 	UserRepo *repo.UserRepository
+}
+
+func NewUserService(db *gorm.DB) *UserService {
+	repo := repo.NewUserRepository(db)
+	return &UserService{UserRepo: repo}
 }
 
 func (service *UserService) FindUser(id string) (*model.User, error) {

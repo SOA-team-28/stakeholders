@@ -21,6 +21,7 @@ func InitDB() *gorm.DB {
 	err = db.AutoMigrate(
 
 		&model.User{},
+		&model.VerificationToken{},
 	)
 
 	if err != nil {
