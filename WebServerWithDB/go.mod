@@ -9,6 +9,8 @@ require (
 	gorm.io/gorm v1.25.10
 )
 
+require github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+
 require (
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

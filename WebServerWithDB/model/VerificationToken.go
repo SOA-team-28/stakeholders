@@ -5,7 +5,7 @@ import (
 )
 
 type VerificationToken struct {
-	userId            float64
-	tokenCreationTime *time.Time
+	UserId            int
+	TokenCreationTime time.Time
 	TokenData         string
 }
