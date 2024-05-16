@@ -14,9 +14,9 @@ func NewTokenVerificatinRepository(databaseConnection *gorm.DB) *TokenVerificato
 	return &TokenVerificatonRepository{DatabaseConnection: databaseConnection}
 }
 
-func (repo *TokenVerificatonRepository) FindById(id string) (model.VerificationToken, error) {
+func (repo *TokenVerificatonRepository) FindById(id int) (model.VerificationToken, error) {
 	user := model.VerificationToken{}
-	dbResult := repo.DatabaseConnection.First(&user, "id = ?", id)
+	dbResult := repo.DatabaseConnection.First(&user, "user_id = ?", id)
 	if dbResult != nil {
 		return user, dbResult.Error
 	}

@@ -18,7 +18,7 @@ func NewUserRepository(databaseConnection *gorm.DB, tokenRepo *TokenVerificatonR
 	return &UserRepository{DatabaseConnection: databaseConnection, TokenRepository: tokenRepo}
 }
 
-func (repo *UserRepository) FindById(id string) (model.User, error) {
+func (repo *UserRepository) FindById(id int) (model.User, error) {
 	user := model.User{}
 	dbResult := repo.DatabaseConnection.First(&user, "id = ?", id)
 	if dbResult != nil {
@@ -35,35 +35,56 @@ func (repo *UserRepository) CreateUser(user *model.User) error {
 	println("Rows affected: ", dbResult.RowsAffected)
 	return nil
 }
-
-func (repo *UserRepository) Login(username, password string) (model.User, error) {
+func (repo *UserRepository) Login(username string, password string) (string, error) {
 	user := model.User{}
-	dbResult := repo.DatabaseConnection.Where("username = ?", username).First(&user)
+	fmt.Println("Username u repo :", username) // Debug print
+
+	dbResult := repo.DatabaseConnection.First(&user, "username = ?", username)
+
 	if dbResult.Error != nil {
-		return user, dbResult.Error
+		return "no username", dbResult.Error
 	}
 
+	fmt.Print("u repo")
+	fmt.Print(user)
 	if user.Password != password {
-		return user, fmt.Errorf("Neispravna lozinka")
+		return "no password", fmt.Errorf("Neispravna lozinka")
+	}
+	fmt.Print("u repo")
+	fmt.Print(user)
+
+	// Check if the user already has a token
+	var existingToken model.VerificationToken
+	existingToken, err := repo.TokenRepository.FindById(user.Id)
+
+	// Decode and validate the existing token
+	claims, err := decodeToken(existingToken.TokenData)
+	if err == nil && claims["userId"] == float64(user.Id) && time.Now().Unix() < int64(claims["expiry"].(float64)) {
+		// Token is valid, return the existing token
+		return existingToken.TokenData, nil
 	}
 
+	// Token is either invalid or does not exist, generate a new token
 	tokenString, err := generateToken(user.Id, user.Username)
 	if err != nil {
-		return user, fmt.Errorf("Greška prilikom generisanja tokena: %v", err)
+		return "", fmt.Errorf("Greška prilikom generisanja tokena: %v", err)
 	}
-
-	token := model.VerificationToken{
+	fmt.Print("u repo generisan token")
+	fmt.Print(tokenString)
+	newToken := model.VerificationToken{
 		UserId:            user.Id,
 		TokenCreationTime: time.Now(),
 		TokenData:         tokenString,
 	}
 
-	if err := repo.TokenRepository.CreateVerificatonToken(&token); err != nil {
-		return user, fmt.Errorf("Greška prilikom kreiranja verifikacionog tokena: %v", err)
+	// Save the new token in the database
+	if err := repo.TokenRepository.CreateVerificatonToken(&newToken); err != nil {
+		return "", fmt.Errorf("Greška prilikom kreiranja verifikacionog tokena: %v", err)
 	}
 
-	return user, nil
+	return tokenString, nil
 }
+
 func generateToken(userID int, username string) (string, error) {
 	claims := jwt.MapClaims{
 		"userId":   userID,
@@ -80,4 +101,27 @@ func generateToken(userID int, username string) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func decodeToken(tokenString string) (jwt.MapClaims, error) {
+	secretKey := []byte("secreet")
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Validate the signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return secretKey, nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("greška prilikom parsiranja tokena: %v", err)
+	}
+
+	// Extract and return the claims
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return claims, nil
+	} else {
+		return nil, fmt.Errorf("nevažeći token")
+	}
 }

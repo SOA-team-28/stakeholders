@@ -9,6 +9,7 @@ service UserService {
     rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
     rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse) {}
     rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
+    rpc LoginUser(LoginUserRequest) returns (LoginUserResponse) {}
 }
 
 message User {
@@ -50,4 +51,12 @@ message DeleteUserRequest {
 }
 
 message DeleteUserResponse {
+}
+message LoginUserRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message LoginUserResponse {
+    string token = 1;
 }

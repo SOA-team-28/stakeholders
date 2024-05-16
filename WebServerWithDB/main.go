@@ -80,6 +80,19 @@ func (s *Server) UpsertUser(ctx context.Context, req *user_service.UpsertUserReq
 	}, nil
 }
 
+func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserRequest) (*user_service.LoginUserResponse, error) {
+	token, err := s.UserService.Login(req.GetUsername(), req.GetPassword())
+	fmt.Print(req.GetPassword())
+	fmt.Print(req.GetUsername())
+	if err != nil {
+		return nil, fmt.Errorf("login unsuccessful: %v", err)
+	}
+
+	return &user_service.LoginUserResponse{
+		Token: token,
+	}, nil
+}
+
 func main() {
 	database := db.InitDB()
 	if database == nil {

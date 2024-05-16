@@ -17,7 +17,7 @@ func NewVerificationTokenService(db *gorm.DB) *VerificationTokenService {
 	return &VerificationTokenService{VerificationTokenRepo: repo}
 }
 
-func (service *VerificationTokenService) FindVerificationToken(id string) (*model.VerificationToken, error) {
+func (service *VerificationTokenService) FindVerificationToken(id int) (*model.VerificationToken, error) {
 	user, err := service.VerificationTokenRepo.FindById(id)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("menu item with id %s not found", id))
