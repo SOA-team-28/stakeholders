@@ -1,9 +1,8 @@
 package service
 
 import (
-	saga "github.com/SOA-team-28/common/common/saga/messaging"
-
-	events "database-example/service"
+	saga "database-example/service/saga"
+	events "database-example/service/saga/check_login"
 )
 
 type LoginOrchestrator struct {
@@ -25,7 +24,7 @@ func NewLoginOrchestrator(publisher saga.Publisher, subscriber saga.Subscriber) 
 
 func (o *LoginOrchestrator) Start(id int) error {
 	event := &events.LoginCommand{
-		id:   id,
+		Id:   id,
 		Type: events.CheckLoginAvailability,
 	}
 
