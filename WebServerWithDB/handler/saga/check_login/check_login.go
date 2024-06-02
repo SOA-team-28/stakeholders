@@ -8,8 +8,10 @@ const (
 )
 
 type LoginCommand struct {
-	Id   int
-	Type LoginCommandType
+	Id       int
+	Username string
+	Password string
+	Type     LoginCommandType
 }
 
 type LoginReplyType int8
@@ -21,5 +23,6 @@ const (
 )
 
 type LoginReply struct {
-	Type LoginReplyType
+	Type  LoginReplyType
+	Token string // Dodato za povratak tokena u slučaju uspešnog login-a
 }

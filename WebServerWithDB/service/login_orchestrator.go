@@ -22,17 +22,18 @@ func NewLoginOrchestrator(publisher saga.Publisher, subscriber saga.Subscriber) 
 	return o, nil
 }
 
-func (o *LoginOrchestrator) Start(id int) error {
+func (o *LoginOrchestrator) Start(username, password string) error {
 	event := &events.LoginCommand{
-		Id:   id,
-		Type: events.CheckLoginAvailability,
+		Username: username,
+		Password: password,
+		Type:     events.CheckLoginAvailability,
 	}
 
 	return o.commandPublisher.Publish(event)
 }
 
 func (o *LoginOrchestrator) handle(reply *events.LoginReply) {
-
+	// Obrada odgovora
 }
 
 //ako zatreba

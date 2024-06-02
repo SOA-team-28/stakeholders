@@ -5,12 +5,12 @@ import (
 	"database-example/db"
 	"database-example/model"
 	user_service "database-example/proto/user"
+	"database-example/repo"
 	"database-example/service"
+	"database-example/service/saga/nats"
 	"fmt"
 	"log"
 	"net"
-
-	"database-example/repo"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -19,13 +19,17 @@ import (
 
 type Server struct {
 	user_service.UnimplementedUserServiceServer
-	UserService *service.UserService
+	UserService      *service.UserService
+	commandPublisher *nats.Publisher
+	replySubscriber  *nats.Subscriber
 }
 
-func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository) *Server {
+func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, commandPublisher *nats.Publisher, replySubscriber *nats.Subscriber) *Server {
 	userService := service.NewUserService(db, tokenRepo)
 	return &Server{
-		UserService: userService,
+		UserService:      userService,
+		commandPublisher: commandPublisher,
+		replySubscriber:  replySubscriber,
 	}
 }
 
@@ -94,12 +98,34 @@ func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserReque
 }
 
 func main() {
+	host := "localhost"
+	port := "4222"
+	user := "user"
+	password := "password"
+	commandSubject := "LoginCommand"
+	replySubject := "LoginReply"
+	queueGroup := "user-service"
+
+	commandPublisher, err := nats.NewNATSPublisher(host, port, user, password, commandSubject)
+	if err != nil {
+		panic(err)
+	}
+
+	replySubscriber, err := nats.NewNATSSubscriber(host, port, user, password, replySubject, queueGroup)
+	if err != nil {
+		panic(err)
+	}
 	database := db.InitDB()
 	if database == nil {
 		log.Fatal("FAILED TO CONNECT TO DB")
 	}
+
+	// Eksplicitno konvertovanje tipova
+	commandPublisherConverted := commandPublisher.(*nats.Publisher)
+	replySubscriberConverted := replySubscriber.(*nats.Subscriber)
 	tokenRepo := repo.NewTokenVerificatinRepository(database)
-	server := NewServer(database, tokenRepo)
+
+	server := NewServer(database, tokenRepo, commandPublisherConverted, replySubscriberConverted)
 
 	grpcServer := grpc.NewServer()
 	user_service.RegisterUserServiceServer(grpcServer, server)
@@ -114,4 +140,5 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+
 }

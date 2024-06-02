@@ -3,6 +3,7 @@ package handler
 import (
 	"database-example/repo"
 	"database-example/service"
+	"fmt"
 
 	saga "database-example/service/saga"
 	events "database-example/service/saga/check_login"
@@ -31,36 +32,27 @@ func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, pub
 }
 
 func (handler *UserHandler) handle(command *events.LoginCommand) {
+	reply := &events.LoginReply{}
 
-	//OVDJE NISAM SIGURNA STA IDE
-	/*
-		id, err := primitive.ObjectIDFromHex(command.Order.Id)
+	switch command.Type {
+	case events.CheckLoginAvailability:
+		token, err := handler.UserService.Login(command.Username, command.Password)
+		fmt.Printf("Usao u login komandu: ")
 		if err != nil {
-			return
+			reply.Type = events.CannotLogin
+			fmt.Printf("Ne moze se ulogovat, kaze odgovor! ")
+		} else {
+			reply.Type = events.CanLogin
+			reply.Token = token // Povratak tokena u slučaju uspešnog login-a
 		}
-		order := &domain.Order{Id: id}
+	default:
+		reply.Type = events.UnknownReply
+	}
 
-		reply := events.CreateOrderReply{Order: command.Order}
-
-		switch command.Type {
-		case events.ApproveOrder:
-			err := handler.orderService.Approve(order)
-			if err != nil {
-				return
-			}
-			reply.Type = events.OrderApproved
-		case events.CancelOrder:
-			err := handler.orderService.Cancel(order)
-			if err != nil {
-				return
-			}
-			reply.Type = events.OrderCancelled
-		default:
-			reply.Type = events.UnknownReply
+	if reply.Type != events.UnknownReply {
+		err := handler.replyPublisher.Publish(reply)
+		if err != nil {
+			fmt.Printf("Failed to publish reply: %v\n", err)
 		}
-
-		if reply.Type != events.UnknownReply {
-			_ = handler.replyPublisher.Publish(reply)
-		}
-	*/
+	}
 }
