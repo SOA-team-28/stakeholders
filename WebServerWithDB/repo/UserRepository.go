@@ -125,3 +125,11 @@ func decodeToken(tokenString string) (jwt.MapClaims, error) {
 		return nil, fmt.Errorf("nevažeći token")
 	}
 }
+func (repo *UserRepository) FindByUsername(username string) (model.User, error) {
+	user := model.User{}
+	dbResult := repo.DatabaseConnection.First(&user, "username = ?", username)
+	if dbResult != nil {
+		return user, dbResult.Error
+	}
+	return user, nil
+}

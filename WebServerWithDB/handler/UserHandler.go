@@ -16,14 +16,16 @@ type UserHandler struct {
 	UserService       *service.UserService
 	replyPublisher    saga.Publisher
 	commandSubscriber saga.Subscriber
+	tokenChannel      chan string
 }
 
-func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, publisher saga.Publisher, subscriber saga.Subscriber) (*UserHandler, error) {
+func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, publisher saga.Publisher, subscriber saga.Subscriber, tokenChannel chan string) (*UserHandler, error) {
 	userService := service.NewUserService(db, tokenRepo)
 	u := &UserHandler{
 		UserService:       userService,
 		replyPublisher:    publisher,
 		commandSubscriber: subscriber,
+		tokenChannel:      tokenChannel,
 	}
 	log.Println("subsrciber u handleru:", u.commandSubscriber)
 	err := u.commandSubscriber.Subscribe(u.Handle)
@@ -35,31 +37,31 @@ func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, pub
 
 }
 
-func (handler *UserHandler) Handle(command *events.LoginCommand) *events.LoginReply {
+func (handler *UserHandler) Handle(reply *events.LoginReply) string {
 	fmt.Printf("Usao u handle: ")
-	reply := &events.LoginReply{}
+	fmt.Printf("Reply primljen u handleru: ", reply)
+	user, err := handler.UserService.FindUser(reply.Id)
 
-	switch command.Type {
-	case events.CheckLoginAvailability:
-		token, err := handler.UserService.Login(command.Username, command.Password)
-		fmt.Printf("Usao u login komandu: ")
+	if err != nil {
+
+		fmt.Printf("Nije nadjen user! ", user)
+		return ""
+	}
+
+	if reply.Type == events.CanLogin {
+		token, err := handler.UserService.Login(user.Username, user.Password)
+		fmt.Printf("Vracen reply da se moze logovati ")
 		if err != nil {
-			reply.Type = events.CannotLogin
+
 			fmt.Printf("Ne moze se ulogovat, kaze odgovor! ")
+			fmt.Printf("token! ", token)
+			return ""
 		} else {
-			reply.Type = events.CanLogin
-			reply.Token = token // Povratak tokena u slučaju uspešnog login-a
-		}
-	default:
-		reply.Type = events.UnknownReply
-	}
 
-	if reply.Type != events.UnknownReply {
-		err := handler.replyPublisher.Publish(reply)
-		if err != nil {
-			fmt.Printf("Failed to publish reply: %v\n", err)
+			handler.tokenChannel <- token
+			return <-handler.tokenChannel
 		}
 	}
 
-	return reply // Vrati odgovor
+	return <-handler.tokenChannel
 }

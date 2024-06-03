@@ -22,11 +22,10 @@ func NewLoginOrchestrator(publisher saga.Publisher, subscriber saga.Subscriber) 
 	return o, nil
 }
 
-func (o *LoginOrchestrator) Start(username, password string) error {
+func (o *LoginOrchestrator) Start(id int) error {
 	event := &events.LoginCommand{
-		Username: username,
-		Password: password,
-		Type:     events.CheckLoginAvailability,
+		Id:   id,
+		Type: events.CheckLoginAvailability,
 	}
 
 	return o.commandPublisher.Publish(event)

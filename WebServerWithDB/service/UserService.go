@@ -42,3 +42,11 @@ func (service *UserService) Login(username string, password string) (string, err
 	}
 	return token, nil
 }
+
+func (service *UserService) FindUserByUseranem(username string) (*model.User, error) {
+	user, err := service.UserRepo.FindByUsername(username)
+	if err != nil {
+		return nil, fmt.Errorf(fmt.Sprintf("menu item  not found", username))
+	}
+	return &user, nil
+}

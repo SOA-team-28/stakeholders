@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"database-example/db"
+	"database-example/handler"
 	"database-example/model"
 	user_service "database-example/proto/user"
 	"database-example/repo"
 	"database-example/service"
+	"sync"
+	"time"
 
 	"database-example/service/saga/nats"
 	"fmt"
 	"log"
 	"net"
-
-	"database-example/handler"
 
 	saga "database-example/service/saga"
 	events "database-example/service/saga/check_login"
@@ -21,6 +22,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"gorm.io/gorm"
+)
+
+var (
+	tokenChannel chan string
 )
 
 type Server struct {
@@ -31,9 +36,15 @@ type Server struct {
 	UserHandler      *handler.UserHandler
 }
 
+var (
+	globalToken string
+	mu          sync.Mutex
+)
+
 func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, commandPublisher *nats.Publisher, replySubscriber *nats.Subscriber) (*Server, error) {
 	userService := service.NewUserService(db, tokenRepo)
-	userHandler, err := handler.NewUserHandler(db, tokenRepo, commandPublisher, replySubscriber)
+	tokenChannel = make(chan string)
+	userHandler, err := handler.NewUserHandler(db, tokenRepo, commandPublisher, replySubscriber, tokenChannel)
 	if err != nil {
 		return nil, err
 	}
@@ -97,24 +108,35 @@ func (s *Server) UpsertUser(ctx context.Context, req *user_service.UpsertUserReq
 }
 
 func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserRequest) (*user_service.LoginUserResponse, error) {
+	user, err := s.UserService.FindUserByUseranem(req.Username)
 	command := &events.LoginCommand{
-		Username: req.GetUsername(),
-		Password: req.GetPassword(),
-		Type:     events.CheckLoginAvailability,
+		Id:   user.Id,
+		Type: events.CheckLoginAvailability,
 	}
 
-	err := s.commandPublisher.Publish(command)
+	err = s.commandPublisher.Publish(command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to publish login command: %v", err)
 	}
 
-	// Ako je login uspješan, možemo odgovoriti korisniku da je prijava bila uspješna i vratiti token
-	// Ovdje možete dodati svoju logiku za generiranje tokena ili provjeru korisničkih podataka
-	token := "generated_token" // Ovo je primjer, zamijenite sa stvarnim tokenom
-
-	return &user_service.LoginUserResponse{
-		Token: token,
-	}, nil
+	// Wait for the response or timeout
+	timeout := time.After(10 * time.Second)
+	ticker := time.Tick(500 * time.Millisecond)
+	for {
+		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for login response")
+		case <-ticker:
+			mu.Lock()
+			token := globalToken
+			mu.Unlock()
+			if token != "" {
+				return &user_service.LoginUserResponse{
+					Token: token,
+				}, nil
+			}
+		}
+	}
 
 }
 
@@ -132,7 +154,7 @@ func main() {
 		panic(err)
 	}
 
-	replySubscriber, err := nats.NewNATSSubscriber(host, port, user, password, "LoginCommand", queueGroup)
+	replySubscriber, err := nats.NewNATSSubscriber(host, port, user, password, "LoginReply", queueGroup)
 	if err != nil {
 		panic(err)
 	}
@@ -154,17 +176,7 @@ func main() {
 	if loginOrchestrator == nil {
 		log.Fatal("failed to create login orchestrator")
 	}
-	command := &events.LoginCommand{
-		Username: "nina",
-		Password: "1234",
-		Type:     events.CheckLoginAvailability,
-	}
 
-	commandPublisher.Publish(command)
-	err = commandPublisher.Publish(command)
-	if err != nil {
-		log.Fatalf("failed to publish command: %v", err)
-	}
 	grpcServer := grpc.NewServer()
 	user_service.RegisterUserServiceServer(grpcServer, server)
 	reflection.Register(grpcServer)
