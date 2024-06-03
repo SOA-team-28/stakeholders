@@ -36,32 +36,28 @@ func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, pub
 	return u, nil
 
 }
+func (handler *UserHandler) Handle(reply *events.LoginReply) {
+	fmt.Println("Usao u handle:")
+	fmt.Printf("Reply primljen u handleru: %+v\n", reply)
 
-func (handler *UserHandler) Handle(reply *events.LoginReply) string {
-	fmt.Printf("Usao u handle: ")
-	fmt.Printf("Reply primljen u handleru: ", reply)
 	user, err := handler.UserService.FindUser(reply.Id)
-
 	if err != nil {
-
-		fmt.Printf("Nije nadjen user! ", user)
-		return ""
+		fmt.Println("Nije nadjen user!")
+		handler.tokenChannel <- ""
+		return
 	}
 
 	if reply.Type == events.CanLogin {
 		token, err := handler.UserService.Login(user.Username, user.Password)
-		fmt.Printf("Vracen reply da se moze logovati ")
 		if err != nil {
-
-			fmt.Printf("Ne moze se ulogovat, kaze odgovor! ")
-			fmt.Printf("token! ", token)
-			return ""
-		} else {
-
-			handler.tokenChannel <- token
-			return <-handler.tokenChannel
+			fmt.Println("Ne moze se ulogovati, kaze odgovor!")
+			handler.tokenChannel <- ""
+			return
 		}
+		fmt.Println("Vracen reply da se moze logovati")
+		handler.tokenChannel <- token
+		return
 	}
 
-	return <-handler.tokenChannel
+	handler.tokenChannel <- ""
 }

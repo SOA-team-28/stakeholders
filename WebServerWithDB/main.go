@@ -109,6 +109,7 @@ func (s *Server) UpsertUser(ctx context.Context, req *user_service.UpsertUserReq
 
 func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserRequest) (*user_service.LoginUserResponse, error) {
 	user, err := s.UserService.FindUserByUseranem(req.Username)
+	fmt.Println("pOSLAT iD:", user.Id)
 	command := &events.LoginCommand{
 		Id:   user.Id,
 		Type: events.CheckLoginAvailability,
