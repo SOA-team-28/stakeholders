@@ -4,6 +4,7 @@ import (
 	"database-example/repo"
 	"database-example/service"
 	"fmt"
+	"log"
 
 	saga "database-example/service/saga"
 	events "database-example/service/saga/check_login"
@@ -24,14 +25,18 @@ func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, pub
 		replyPublisher:    publisher,
 		commandSubscriber: subscriber,
 	}
-	err := u.commandSubscriber.Subscribe(u.handle)
+	log.Println("subsrciber u handleru:", u.commandSubscriber)
+	err := u.commandSubscriber.Subscribe(u.Handle)
 	if err != nil {
+		log.Println("Error subscribing to commands:", err)
 		return nil, err
 	}
 	return u, nil
+
 }
 
-func (handler *UserHandler) handle(command *events.LoginCommand) {
+func (handler *UserHandler) Handle(command *events.LoginCommand) *events.LoginReply {
+	fmt.Printf("Usao u handle: ")
 	reply := &events.LoginReply{}
 
 	switch command.Type {
@@ -55,4 +60,6 @@ func (handler *UserHandler) handle(command *events.LoginCommand) {
 			fmt.Printf("Failed to publish reply: %v\n", err)
 		}
 	}
+
+	return reply // Vrati odgovor
 }

@@ -7,10 +7,16 @@ import (
 	user_service "database-example/proto/user"
 	"database-example/repo"
 	"database-example/service"
+
 	"database-example/service/saga/nats"
 	"fmt"
 	"log"
 	"net"
+
+	"database-example/handler"
+
+	saga "database-example/service/saga"
+	events "database-example/service/saga/check_login"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -22,15 +28,21 @@ type Server struct {
 	UserService      *service.UserService
 	commandPublisher *nats.Publisher
 	replySubscriber  *nats.Subscriber
+	UserHandler      *handler.UserHandler
 }
 
-func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, commandPublisher *nats.Publisher, replySubscriber *nats.Subscriber) *Server {
+func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, commandPublisher *nats.Publisher, replySubscriber *nats.Subscriber) (*Server, error) {
 	userService := service.NewUserService(db, tokenRepo)
+	userHandler, err := handler.NewUserHandler(db, tokenRepo, commandPublisher, replySubscriber)
+	if err != nil {
+		return nil, err
+	}
 	return &Server{
 		UserService:      userService,
 		commandPublisher: commandPublisher,
 		replySubscriber:  replySubscriber,
-	}
+		UserHandler:      userHandler, // Dodano
+	}, nil
 }
 
 func (s *Server) GetUser(ctx context.Context, req *user_service.GetUserRequest) (*user_service.GetUserResponse, error) {
@@ -85,16 +97,25 @@ func (s *Server) UpsertUser(ctx context.Context, req *user_service.UpsertUserReq
 }
 
 func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserRequest) (*user_service.LoginUserResponse, error) {
-	token, err := s.UserService.Login(req.GetUsername(), req.GetPassword())
-	fmt.Print(req.GetPassword())
-	fmt.Print(req.GetUsername())
-	if err != nil {
-		return nil, fmt.Errorf("login unsuccessful: %v", err)
+	command := &events.LoginCommand{
+		Username: req.GetUsername(),
+		Password: req.GetPassword(),
+		Type:     events.CheckLoginAvailability,
 	}
+
+	err := s.commandPublisher.Publish(command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to publish login command: %v", err)
+	}
+
+	// Ako je login uspješan, možemo odgovoriti korisniku da je prijava bila uspješna i vratiti token
+	// Ovdje možete dodati svoju logiku za generiranje tokena ili provjeru korisničkih podataka
+	token := "generated_token" // Ovo je primjer, zamijenite sa stvarnim tokenom
 
 	return &user_service.LoginUserResponse{
 		Token: token,
 	}, nil
+
 }
 
 func main() {
@@ -103,7 +124,7 @@ func main() {
 	user := "user"
 	password := "password"
 	commandSubject := "LoginCommand"
-	replySubject := "LoginReply"
+	//replySubject := "LoginReply"
 	queueGroup := "user-service"
 
 	commandPublisher, err := nats.NewNATSPublisher(host, port, user, password, commandSubject)
@@ -111,7 +132,7 @@ func main() {
 		panic(err)
 	}
 
-	replySubscriber, err := nats.NewNATSSubscriber(host, port, user, password, replySubject, queueGroup)
+	replySubscriber, err := nats.NewNATSSubscriber(host, port, user, password, "LoginCommand", queueGroup)
 	if err != nil {
 		panic(err)
 	}
@@ -125,8 +146,25 @@ func main() {
 	replySubscriberConverted := replySubscriber.(*nats.Subscriber)
 	tokenRepo := repo.NewTokenVerificatinRepository(database)
 
-	server := NewServer(database, tokenRepo, commandPublisherConverted, replySubscriberConverted)
+	server, err := NewServer(database, tokenRepo, commandPublisherConverted, replySubscriberConverted)
+	if err != nil {
+		log.Fatalf("failed to create server: %v", err)
+	}
+	loginOrchestrator := server.initLoginOrchestrator(commandPublisher, replySubscriber)
+	if loginOrchestrator == nil {
+		log.Fatal("failed to create login orchestrator")
+	}
+	command := &events.LoginCommand{
+		Username: "nina",
+		Password: "1234",
+		Type:     events.CheckLoginAvailability,
+	}
 
+	commandPublisher.Publish(command)
+	err = commandPublisher.Publish(command)
+	if err != nil {
+		log.Fatalf("failed to publish command: %v", err)
+	}
 	grpcServer := grpc.NewServer()
 	user_service.RegisterUserServiceServer(grpcServer, server)
 	reflection.Register(grpcServer)
@@ -141,4 +179,12 @@ func main() {
 		log.Fatalf("failed to serve: %v", err)
 	}
 
+}
+
+func (server *Server) initLoginOrchestrator(publisher saga.Publisher, subscriber saga.Subscriber) *service.LoginOrchestrator {
+	orchestrator, err := service.NewLoginOrchestrator(publisher, subscriber)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return orchestrator
 }
