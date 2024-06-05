@@ -50,3 +50,11 @@ func (service *UserService) FindUserByUseranem(username string) (*model.User, er
 	}
 	return &user, nil
 }
+func (service *UserService) UpdateStatus(id int, status bool) error {
+	err := service.UserRepo.UpdateLoginStatus(id, status)
+	if err != nil {
+		fmt.Print("unsuccessful update for userId", id)
+		return nil
+	}
+	return nil
+}

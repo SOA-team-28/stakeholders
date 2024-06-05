@@ -133,3 +133,13 @@ func (repo *UserRepository) FindByUsername(username string) (model.User, error) 
 	}
 	return user, nil
 }
+func (repo *UserRepository) UpdateLoginStatus(userId int, loginStatus bool) error {
+	dbResult := repo.DatabaseConnection.Model(&model.User{}).Where("id = ?", userId).Update("can_login", loginStatus)
+	if dbResult.Error != nil {
+		return dbResult.Error
+	}
+	if dbResult.RowsAffected == 0 {
+		return fmt.Errorf("no user found with id %d", userId)
+	}
+	return nil
+}

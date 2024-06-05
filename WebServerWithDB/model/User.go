@@ -9,6 +9,7 @@ type User struct {
 	Email             string
 	VerificationToken string
 	IsVerified        bool
+	CanLogin          bool
 }
 
 type UserRole int

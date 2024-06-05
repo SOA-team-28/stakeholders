@@ -34,6 +34,7 @@ type Server struct {
 	commandPublisher *nats.Publisher
 	replySubscriber  *nats.Subscriber
 	UserHandler      *handler.UserHandler
+	TokenService     *service.VerificationTokenService
 }
 
 var (
@@ -48,11 +49,13 @@ func NewServer(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, commandP
 	if err != nil {
 		return nil, err
 	}
+	tokenService := service.NewVerificationTokenService(db)
 	return &Server{
 		UserService:      userService,
 		commandPublisher: commandPublisher,
 		replySubscriber:  replySubscriber,
 		UserHandler:      userHandler, // Dodano
+		TokenService:     tokenService,
 	}, nil
 }
 
@@ -119,23 +122,24 @@ func (s *Server) LoginUser(ctx context.Context, req *user_service.LoginUserReque
 		return nil, fmt.Errorf("failed to publish login command: %v", err)
 	}
 
-	// Wait for the response or timeout
-	timeout := time.After(10 * time.Second)
-	ticker := time.Tick(500 * time.Millisecond)
-	for {
-		select {
-		case <-timeout:
-			return nil, fmt.Errorf("timeout waiting for login response")
-		case <-ticker:
-			mu.Lock()
-			token := globalToken
-			mu.Unlock()
-			if token != "" {
-				return &user_service.LoginUserResponse{
-					Token: token,
-				}, nil
-			}
+	time.Sleep(3 * time.Second)
+	updatedUser, err := s.UserService.FindUser(user.Id)
+	if updatedUser.CanLogin == true {
+		token, err := s.TokenService.FindVerificationTokenByUser(updatedUser.Id)
+		if err != nil {
+			fmt.Println("cannot find token")
+			return &user_service.LoginUserResponse{
+				Token: token.TokenData,
+			}, nil
 		}
+		return &user_service.LoginUserResponse{
+			Token: token.TokenData,
+		}, nil
+
+	} else {
+		return &user_service.LoginUserResponse{
+			Token: "user cannot login bcs he has too many reports",
+		}, nil
 	}
 
 }

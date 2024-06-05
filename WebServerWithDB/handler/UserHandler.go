@@ -37,7 +37,7 @@ func NewUserHandler(db *gorm.DB, tokenRepo *repo.TokenVerificatonRepository, pub
 
 }
 
-func (handler *UserHandler) Handle(reply *events.LoginReply) string {
+func (handler *UserHandler) Handle(reply *events.LoginReply) {
 	fmt.Printf("Usao u handle: ")
 	fmt.Printf("Reply primljen u handleru: ", reply)
 	user, err := handler.UserService.FindUser(reply.Id)
@@ -45,7 +45,7 @@ func (handler *UserHandler) Handle(reply *events.LoginReply) string {
 	if err != nil {
 
 		fmt.Printf("Nije nadjen user! ", user)
-		return ""
+
 	}
 
 	if reply.Type == events.CanLogin {
@@ -55,13 +55,16 @@ func (handler *UserHandler) Handle(reply *events.LoginReply) string {
 
 			fmt.Printf("Ne moze se ulogovat, kaze odgovor! ")
 			fmt.Printf("token! ", token)
-			return ""
-		} else {
 
-			handler.tokenChannel <- token
-			return <-handler.tokenChannel
+		} else {
+			fmt.Printf("updejtuj status na true! ", token)
+			//reply rekao da moze, login metoda iz servisa bila uspjesna
+			handler.UserService.UpdateStatus(user.Id, true)
 		}
+	} else {
+		fmt.Printf("updejtuj status na false! ")
+		//reply rekao da se ne moze logovati
+		handler.UserService.UpdateStatus(user.Id, false)
 	}
 
-	return <-handler.tokenChannel
 }
