@@ -12,7 +12,7 @@ var (
 )
 
 func InitDB() *gorm.DB {
-	dsn := "host=stakeholders_database user=postgres password=super dbname=stakeholders port=5432 sslmode=disable"
+	dsn := "host=localhost user=postgres password=super dbname=tours-microservice port=5432 sslmode=disable"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		print(err)
